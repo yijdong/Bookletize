@@ -1,0 +1,6 @@
+{
+  "name": "Saddle Stitcher - PDF Imposition Tool",
+  "description": "A professional tool for automatic saddle stitch (booklet) imposition. Upload a sequential PDF and transform it into a print-ready layout for booklet binding with real-time preview.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,103 @@
+:root {
+  /* Brand */
+  --color-primary: #646749;
+  --color-primary-hover: #55583d;
+  --color-primary-active: #474a33;
+  --color-primary-subtle: #e8e9e0;
+  --color-secondary: #bf6c49;
+  --color-secondary-hover: #a95d3d;
+  --color-secondary-active: #934f34;
+  --color-secondary-subtle: #f1e4de;
+
+  /* Backgrounds and surfaces */
+  --color-bg: #f7f2ea;
+  --color-bg-deep: #eee7dc;
+  --color-surface: #fffcf7;
+  --color-surface-muted: #f3eee6;
+  --color-surface-raised: #ffffff;
+  --color-border: #d8d2c8;
+  --color-border-subtle: #e8e1d7;
+  --color-border-strong: #b9b3a8;
+
+  /* Text — derived from #1c1d0e on #f7f2ea */
+  --color-text: #1c1d0e;
+  --color-text-strong: #3d3d2f;
+  --color-text-secondary: #69685b;
+  --color-text-muted: #949287;
+  --color-text-disabled: #b9b6ac;
+
+  /* Semantic */
+  --color-success: #646749;
+  --color-success-bg: #e8e9e0;
+  --color-success-border: #bfc3ad;
+  --color-success-text: #474a33;
+  --color-warning: #a95d3d;
+  --color-warning-bg: #f1e4de;
+  --color-warning-border: #ddb8a7;
+  --color-warning-text: #7d432f;
+  --color-error: #a64b3c;
+  --color-error-bg: #f6e5e1;
+  --color-error-border: #deb7af;
+  --color-error-text: #7f382f;
+  --color-info: #6f7867;
+  --color-info-bg: #e9ece5;
+  --color-info-border: #c5cbbf;
+  --color-info-text: #4f584a;
+
+  /* Typography */
+  --font-heading: "Songti SC", "Noto Serif SC", "Source Han Serif SC", STSong,
+    SimSun, serif;
+  --font-body: "PingFang SC", "Noto Sans SC", "Source Han Sans SC",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --font-brand: Georgia, "Times New Roman", serif;
+  --font-numeric: Inter, ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: 2.5rem;
+  --text-h1: 2rem;
+  --text-h2: 1.5rem;
+  --text-h3: 1.25rem;
+  --text-body-lg: 1.125rem;
+  --text-body: 1rem;
+  --text-ui: 0.875rem;
+  --text-caption: 0.75rem;
+
+  /* Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Warm elevation */
+  --shadow-sm: 0 2px 10px rgb(28 29 14 / 6%);
+  --shadow-md: 0 12px 30px rgb(28 29 14 / 9%);
+  --shadow-lg: 0 24px 64px rgb(28 29 14 / 12%);
+  --shadow-float: 0 16px 40px rgb(28 29 14 / 14%);
+
+  /* Motion */
+  --duration-micro: 160ms;
+  --duration-state: 220ms;
+  --duration-overlay: 260ms;
+  --ease-gentle: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Focus */
+  --focus-ring: 0 0 0 3px rgb(100 103 73 / 16%);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --text-display: 2rem;
+    --text-h1: 1.75rem;
+    --text-h2: 1.375rem;
+    --text-h3: 1.125rem;
+    --text-body-lg: 1.0625rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-micro: 0ms;
+    --duration-state: 0ms;
+    --duration-overlay: 0ms;
+  }
+}
