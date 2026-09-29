@@ -57,6 +57,11 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
 
   const canvasToPreview = (canvas: HTMLCanvasElement) => new Promise<PreviewImage>((resolve, reject) => {
     canvas.toBlob(blob => {
+      // Zero the canvas right after encoding so WebKit releases the backing store
+      // immediately. iOS Safari does not reclaim canvas memory on GC alone, and
+      // repeated edits otherwise accumulate until the WebContent process is killed.
+      canvas.width = 0;
+      canvas.height = 0;
       if (!blob) return reject(new Error('无法生成页面预览'));
       const url = URL.createObjectURL(blob);
       generatedUrlsRef.current.add(url);

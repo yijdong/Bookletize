@@ -52,6 +52,11 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
 
   const createPreviewUrl = (canvas: HTMLCanvasElement) => new Promise<string>((resolve, reject) => {
     canvas.toBlob(blob => {
+      // Zero the canvas right after encoding so WebKit releases the backing store
+      // immediately. iOS Safari does not reclaim canvas memory on GC alone, and
+      // this loop runs once per page, so the leak scales with document length.
+      canvas.width = 0;
+      canvas.height = 0;
       if (!blob) {
         reject(new Error('无法生成页面预览'));
         return;

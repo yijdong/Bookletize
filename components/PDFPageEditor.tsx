@@ -51,17 +51,25 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
   const nativeDragImageRef = useRef<HTMLElement | null>(null);
   const pointerYRef = useRef<number | null>(null);
   const autoScrollFrameRef = useRef<number | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const didInitialBuildRef = useRef(false);
+  const buildVersionRef = useRef(0);
 
   const makeId = (prefix: string) => `${prefix}-${Date.now()}-${nextIdRef.current++}`;
 
   useEffect(() => () => {
-    if (autoScrollFrameRef.current !== null) window.cancelAnimationFrame(autoScrollFrameRef.current);
+    // go through the drag's own teardown so the rAF loop and its document listeners die together
+    dragCleanupRef.current?.();
     nativeDragImageRef.current?.remove();
   }, []);
 
   const canvasToUrl = (canvas: HTMLCanvasElement) => new Promise<string>((resolve, reject) => {
     canvas.toBlob(blob => {
+      // Zero the canvas right after encoding so WebKit releases the backing store
+      // immediately. iOS Safari does not reclaim canvas memory on GC alone, and
+      // repeated edits otherwise accumulate until the WebContent process is killed.
+      canvas.width = 0;
+      canvas.height = 0;
       if (!blob) return reject(new Error('无法生成页面预览'));
       const url = URL.createObjectURL(blob);
       objectUrlsRef.current.add(url);
@@ -198,6 +206,13 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
 
   const startPointerDrag = (event: React.PointerEvent, pageId: string) => {
     if (event.button !== 0) return;
+    // A drag can outlive its own pointerup: iOS drops the event when the touch is
+    // interrupted (scroll takeover, system gesture, app switch). Because the auto-scroll
+    // loop below reschedules itself, a stale drag keeps an immortal rAF loop and its
+    // document listeners alive — the page never goes idle again, Safari decides the
+    // WebContent process is unresponsive and kills it, and the reload drops the user
+    // back on the home step. Tear down any previous drag before starting a new one.
+    dragCleanupRef.current?.();
     event.preventDefault();
     draggedIdRef.current = pageId;
     setDraggedId(pageId);
@@ -210,7 +225,12 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
     const initialIndex = getInsertionIndexAtPoint(event.clientX, event.clientY);
     updateDropIndex(initialIndex);
 
+    // `active` is the loop's own kill switch. It must be checked on every tick, not just
+    // at teardown: cancelling a frame only stops the *pending* tick, so a tick already
+    // queued to run would otherwise schedule the next one and resurrect the loop.
+    let active = true;
     const runAutoScroll = () => {
+      if (!active) return;
       const pointerY = pointerYRef.current;
       if (pointerY !== null) {
         const edge = 84;
@@ -233,17 +253,30 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
       setDragOverlay(current => current ? { ...current, left: pointerEvent.clientX - dragOffsetRef.current.x, top: pointerEvent.clientY - dragOffsetRef.current.y } : current);
       updateDropIndex(getInsertionIndexAtPoint(pointerEvent.clientX, pointerEvent.clientY));
     };
-    const finishPointerDrag = () => {
-      const target = dropIndexRef.current;
-      if (target !== null) movePageToIndex(target, pageId);
-      setDragOverlay(null);
+    // Declared as function statements so teardown and the handler can reference each
+    // other regardless of order. teardown() is idempotent and does nothing but clean up,
+    // so it is safe to call from more than one place (pointerup, pointercancel, the next
+    // drag, unmount) and never commits an edit on its own.
+    function teardown() {
+      if (!active) return;
+      active = false;
       pointerYRef.current = null;
       if (autoScrollFrameRef.current !== null) window.cancelAnimationFrame(autoScrollFrameRef.current);
       autoScrollFrameRef.current = null;
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', finishPointerDrag);
       document.removeEventListener('pointercancel', finishPointerDrag);
-    };
+      if (dragCleanupRef.current === teardown) dragCleanupRef.current = null;
+    }
+    function finishPointerDrag() {
+      const target = dropIndexRef.current;
+      teardown();
+      setDragOverlay(null);
+      draggedIdRef.current = null;
+      setDraggedId(null);
+      if (target !== null) movePageToIndex(target, pageId);
+    }
+    dragCleanupRef.current = teardown;
     document.addEventListener('pointermove', handlePointerMove, { passive: false });
     document.addEventListener('pointerup', finishPointerDrag);
     document.addEventListener('pointercancel', finishPointerDrag);
@@ -274,6 +307,12 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
 
   const buildEditedPdf = async () => {
     if (pages.length === 0) { setPreviewFile(null); return; }
+    // Tag each build and discard its result if a newer edit superseded it. Without
+    // this, tapping two insert/delete controls inside one debounce window leaves two
+    // builds racing; each one emits a File that re-runs the whole imposition
+    // pipeline, and on iOS Safari the doubled canvas churn is enough to kill the
+    // WebContent process (Safari then reports "a problem repeatedly occurred").
+    const version = ++buildVersionRef.current;
     setStatus('saving');
     setError(null);
     try {
@@ -289,10 +328,12 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
         }
       }
       const bytes = await output.save();
+      if (version !== buildVersionRef.current) return;
       const editedFile = new File([bytes], `${file.name.replace(/\.pdf$/i, '')}_已整理.pdf`, { type: 'application/pdf', lastModified: Date.now() });
       setPreviewFile(editedFile);
       setStatus('ready');
     } catch (reason) {
+      if (version !== buildVersionRef.current) return;
       console.error(reason);
       setError(reason instanceof Error ? reason.message : '生成整理后的 PDF 时出现问题。');
       setStatus('error');
