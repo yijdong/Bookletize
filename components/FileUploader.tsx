@@ -54,7 +54,15 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileSelect, dimens
         aria-describedby={error ? 'upload-error' : 'upload-help'}
         className={`flex h-[220px] w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-[rgba(191,108,73,0.4)] bg-[#f5efe6] px-4 text-center transition-all duration-state ease-gentle active:bg-secondary-subtle min-[768px]:h-[230px] min-[768px]:gap-4 min-[768px]:rounded-[22px] ${isDragging ? 'border-secondary bg-secondary-subtle' : 'hover:border-secondary'}`}
       >
-        <input type="file" ref={fileInputRef} onChange={event => { if (event.target.files?.[0]) void validateAndSelect(event.target.files[0]); }} accept="application/pdf,.pdf" className="hidden" />
+        <input type="file" ref={fileInputRef} onChange={event => {
+          const selected = event.target.files?.[0];
+          // Clear the input before validating so that picking the SAME file again still
+          // fires change. Browsers skip change when the value is unchanged, so without
+          // this a user who hit a validation error and then re-picked the same PDF got
+          // no response at all and could not get past the upload step.
+          event.target.value = '';
+          if (selected) void validateAndSelect(selected);
+        }} accept="application/pdf,.pdf" className="hidden" />
         <img src="/assets/decorations/home-upload.svg" alt="" aria-hidden="true" className="h-12 w-12 min-[768px]:h-[54px] min-[768px]:w-[54px]" />
         <p className="text-[17px] font-semibold leading-7 text-[#303225] min-[768px]:text-[20px] min-[768px]:leading-[30px]"><span className="min-[768px]:hidden">点击选择 PDF 文件</span><span className="hidden min-[768px]:inline">点击上传或拖拽 PDF 文件到这里</span></p>
         <p id="upload-help" className="text-[14px] font-normal leading-[18px] text-[#303225]/65">仅支持PDF格式 · 最大 200 MB</p>

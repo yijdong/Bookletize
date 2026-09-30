@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PDFDocument, PDFEmbeddedPage } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Must be the `legacy` build — see the note in PDFCropEditor.tsx. The modern build calls
+// native `Map.prototype.getOrInsertComputed` / `Uint8Array.prototype.toHex`, which older
+// mobile engines lack; the legacy build polyfills them.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import JSZip from 'jszip';
 import { PDFMetadata, ProcessingState, TargetDimensions } from '../types';
 import * as Logic from '../utils/impositionLogic';
 import { calculateScaleToFit, getEmbedBounds } from '../utils/pdfGeometry';
 import { requestSaveHandle, saveBlobToHandleOrDownload, saveBlobWithPicker } from '../utils/saveFile';
+import { toUserMessage } from '../utils/userMessage';
 import { BouncingDots } from './ui/BouncingDots';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -162,7 +166,7 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
     } catch (reason) {
       if (version !== processingVersion.current) return;
       console.error(reason);
-      setState({ status: 'error', progress: 0, error: reason instanceof Error ? reason.message : '无法处理这个 PDF' });
+      setState({ status: 'error', progress: 0, error: toUserMessage(reason, '无法处理这个 PDF。请换一个文件重试。') });
     }
   }, [file, targetDims, logicalPagePreviews]);
 

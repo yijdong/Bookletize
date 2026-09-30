@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Must be the `legacy` build — do not "upgrade" these two imports. The modern build calls
+// `Map.prototype.getOrInsertComputed` and `Uint8Array.prototype.toHex` as bare native
+// methods; both only reached JS engines in late 2025, so on the Huawei browser and other
+// older mobile engines PDF loading dies with "a.toHex is not a function" or
+// "i(...).getOrInsertComputed is not a function". The legacy build ships core-js polyfills
+// for exactly these two.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { validatePdfFile } from './FileUploader';
 import { getEmbedBounds } from '../utils/pdfGeometry';
 import { EditorSkeleton, PDFPageEditor } from './PDFPageEditor';
@@ -10,6 +16,7 @@ import { FloatingActionBar } from './ui/FloatingActionBar';
 import { BorderBeamPanel } from './ui/border-beam-panel';
 import { TargetDimensions } from '../types';
 import { requestSaveHandle, saveBlobToHandleOrDownload } from '../utils/saveFile';
+import { toUserMessage } from '../utils/userMessage';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -125,7 +132,7 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
       setStatus('preview');
     } catch (reason) {
       console.error(reason);
-      setError(reason instanceof Error ? reason.message : '无法打开这个 PDF，请换一个文件重试。');
+      setError(toUserMessage(reason, '无法打开这个 PDF，请换一个文件重试。'));
       setStatus('error');
     }
   };
@@ -189,7 +196,7 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
       onEditedFile?.(nextFile);
     } catch (reason) {
       console.error(reason);
-      setError(reason instanceof Error ? reason.message : '裁切时出现问题，请重新上传后再试。');
+      setError(toUserMessage(reason, '裁切时出现问题，请重新上传后再试。'));
       setStatus('preview');
     }
   };
@@ -234,7 +241,7 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
       await saveBlobToHandleOrDownload(blob, fileName, handle);
     } catch (reason) {
       console.error(reason);
-      setError(reason instanceof Error ? reason.message : '生成裁切 PDF 时出现问题，请重试。');
+      setError(toUserMessage(reason, '生成裁切 PDF 时出现问题，请重试。'));
     } finally {
       setIsDownloadingResult(false);
     }
@@ -252,7 +259,15 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
       aria-label="上传需要拆分的 PDF"
       className={`flex w-full cursor-pointer touch-manipulation flex-col items-center justify-center text-center transition-all duration-state ease-gentle ${homeVariant ? 'h-[220px] gap-3 rounded-[18px] border-2 border-dashed border-[rgba(191,108,73,0.4)] bg-[#f5efe6] px-4 active:bg-secondary-subtle min-[768px]:h-[230px] min-[768px]:gap-4 min-[768px]:rounded-[22px]' : 'h-[220px] rounded-[18px] bg-surface px-4 min-[768px]:h-64 min-[768px]:rounded-lg min-[768px]:px-6'} ${isDragging ? (homeVariant ? 'border-secondary bg-secondary-subtle' : 'bg-primary-subtle ring-2 ring-primary') : homeVariant ? 'hover:border-secondary' : 'hover:bg-surface-muted'}`}
     >
-      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={event => { if (event.target.files?.[0]) void loadFile(event.target.files[0]); }} />
+      <input ref={inputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={event => {
+        const selected = event.target.files?.[0];
+        // Clear the input before loading so that picking the SAME file again still fires
+        // change. Browsers skip change when the value is unchanged, and loadFile returns
+        // early on both a validation failure and a PDF parse failure — so without this a
+        // user whose file failed to open could never retry that file.
+        event.target.value = '';
+        if (selected) void loadFile(selected);
+      }} />
       <img src="/assets/decorations/home-upload.svg" alt="" aria-hidden="true" className={homeVariant ? 'h-12 w-12 min-[768px]:h-[54px] min-[768px]:w-[54px]' : 'mb-3 h-12 w-12 min-[768px]:mb-4 min-[768px]:h-[54px] min-[768px]:w-[54px]'} />
       <p className={homeVariant ? 'text-[17px] font-semibold leading-7 text-[#303225] min-[768px]:text-[20px] min-[768px]:leading-[30px]' : 'text-[17px] font-bold text-ink min-[768px]:text-lg'}>{homeVariant ? <><span className="min-[768px]:hidden">点击选择 PDF 文件</span><span className="hidden min-[768px]:inline">点击上传或拖拽 PDF 文件到这里</span></> : '上传需要拆成单页的 PDF'}</p>
       <p className={homeVariant ? 'text-[14px] leading-[18px] text-[#303225]/65' : 'mt-2 max-w-lg text-sm leading-relaxed text-ink-secondary'}>{homeVariant ? '仅支持PDF格式 · 最大 200 MB' : '适合一页里同时放了左右两幅画的连页稿。上传后可以逐页确认，封面、封底等单独页面可选择保持不变。'}</p>
@@ -274,7 +289,7 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
         </div>
       )}
 
-      {error && <div role="alert" className="mb-5 flex items-start gap-3 rounded-[14px] border border-error-border bg-error-bg px-[18px] py-3 text-sm font-semibold text-error-text"><img src="/assets/decorations/error.svg" alt="" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" /><span>裁切没有完成：{error} 请检查后重试。</span></div>}
+      {error && <div role="alert" className="mb-5 flex items-start gap-3 rounded-[14px] border border-error-border bg-error-bg px-[18px] py-3 text-sm font-semibold text-error-text"><img src="/assets/decorations/error.svg" alt="" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" /><span>裁切没有完成：{error}</span></div>}
 
       {(status === 'idle' || status === 'loading' || status === 'error') && (
         <div className="w-full">

@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PDFDocument, rgb } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Must be the `legacy` build — see the note in PDFCropEditor.tsx. The modern build calls
+// native `Map.prototype.getOrInsertComputed` / `Uint8Array.prototype.toHex`, which older
+// mobile engines lack; the legacy build polyfills them.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { getMissingPageCount, isValidSaddleStitchPageCount } from '../utils/pageCount';
 import { ConfirmBackButton } from './ConfirmBackButton';
 import { ImpositionEngine } from './ImpositionEngine';
 import { TargetDimensions } from '../types';
+import { toUserMessage } from '../utils/userMessage';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -117,7 +121,7 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
       } catch (reason) {
         console.error(reason);
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : '无法读取这个 PDF。');
+          setError(toUserMessage(reason, '无法读取这个 PDF。'));
           setStatus('error');
         }
       }
@@ -335,7 +339,7 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
     } catch (reason) {
       if (version !== buildVersionRef.current) return;
       console.error(reason);
-      setError(reason instanceof Error ? reason.message : '生成整理后的 PDF 时出现问题。');
+      setError(toUserMessage(reason, '生成整理后的 PDF 时出现问题。'));
       setStatus('error');
     }
   };
