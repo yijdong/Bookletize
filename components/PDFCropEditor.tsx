@@ -17,6 +17,7 @@ import { BorderBeamPanel } from './ui/border-beam-panel';
 import { TargetDimensions } from '../types';
 import { requestSaveHandle, saveBlobToHandleOrDownload } from '../utils/saveFile';
 import { toUserMessage } from '../utils/userMessage';
+import { PDFJS_ASSET_OPTIONS } from '../utils/pdfjsAssets';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -87,7 +88,7 @@ export const PDFCropEditor: React.FC<PDFCropEditorProps> = ({ onBack, onEditedFi
   }, [status, initialSession, onStepChange]);
 
   const renderPdfPages = async (data: Uint8Array): Promise<PagePreview[]> => {
-    const pdf = await pdfjs.getDocument({ data }).promise;
+    const pdf = await pdfjs.getDocument({ data, ...PDFJS_ASSET_OPTIONS }).promise;
     const previews: PagePreview[] = [];
     try {
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {

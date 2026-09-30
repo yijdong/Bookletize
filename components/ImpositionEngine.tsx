@@ -12,6 +12,7 @@ import * as Logic from '../utils/impositionLogic';
 import { calculateScaleToFit, getEmbedBounds } from '../utils/pdfGeometry';
 import { requestSaveHandle, saveBlobToHandleOrDownload, saveBlobWithPicker } from '../utils/saveFile';
 import { toUserMessage } from '../utils/userMessage';
+import { PDFJS_ASSET_OPTIONS } from '../utils/pdfjsAssets';
 import { BouncingDots } from './ui/BouncingDots';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -84,7 +85,7 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
     setState({ status: 'loading', progress: 0 });
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const previewPdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) }).promise;
+      const previewPdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)), ...PDFJS_ASSET_OPTIONS }).promise;
       const logicalCount = previewPdf.numPages;
       if (logicalCount > MAX_LOGICAL_PAGES) throw new Error(`文档共有 ${logicalCount} 页，当前最多支持 ${MAX_LOGICAL_PAGES} 页。`);
       const meta: PDFMetadata = {
@@ -146,7 +147,7 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
       const blob = new Blob([bytes], { type: 'application/pdf' });
       setImposedPdfBlob(blob);
       setState({ status: 'ready', progress: 100 });
-      const sheetPdf = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
+      const sheetPdf = await pdfjs.getDocument({ data: new Uint8Array(bytes), ...PDFJS_ASSET_OPTIONS }).promise;
       const sheets: PreviewImage[] = [];
       for (let pageNumber = 1; pageNumber <= sheetPdf.numPages; pageNumber++) {
         const page = await sheetPdf.getPage(pageNumber);

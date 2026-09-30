@@ -11,6 +11,7 @@ import { ConfirmBackButton } from './ConfirmBackButton';
 import { ImpositionEngine } from './ImpositionEngine';
 import { TargetDimensions } from '../types';
 import { toUserMessage } from '../utils/userMessage';
+import { PDFJS_ASSET_OPTIONS } from '../utils/pdfjsAssets';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -88,7 +89,7 @@ export const PDFPageEditor: React.FC<PDFPageEditorProps> = ({ file, targetDims, 
       setError(null);
       try {
         const data = new Uint8Array(await file.arrayBuffer());
-        const pdf = await pdfjs.getDocument({ data }).promise;
+        const pdf = await pdfjs.getDocument({ data, ...PDFJS_ASSET_OPTIONS }).promise;
         const loaded: EditablePage[] = new Array(pdf.numPages);
         try {
           const total = pdf.numPages;
