@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 import { PDFMetadata, ProcessingState, TargetDimensions } from '../types';
 import * as Logic from '../utils/impositionLogic';
 import { calculateScaleToFit, getEmbedBounds } from '../utils/pdfGeometry';
-import { requestSaveHandle, saveBlobToHandleOrDownload, saveBlobWithPicker } from '../utils/saveFile';
+import { isMobileSaveBrowser, savePdfOnMobile, requestSaveHandle, saveBlobToHandleOrDownload, saveBlobWithPicker } from '../utils/saveFile';
 import { toUserMessage } from '../utils/userMessage';
 import { PDFJS_ASSET_OPTIONS } from '../utils/pdfjsAssets';
 import { BouncingDots } from './ui/BouncingDots';
@@ -45,6 +45,9 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
   const [imposedPdfBlob, setImposedPdfBlob] = useState<Blob | null>(null);
   const [viewMode, setViewMode] = useState<'reading' | 'imposition'>('reading');
   const [isExportingImages, setIsExportingImages] = useState(false);
+  const [pdfSaveMessage, setPdfSaveMessage] = useState<string | null>(null);
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
+  const openPdfOnlyRef = useRef(false);
   const [sheetsLoading, setSheetsLoading] = useState(true);
   const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
   const [turnDirection, setTurnDirection] = useState<'next' | 'previous'>('next');
@@ -216,15 +219,31 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
         )}
         <div className="grid w-auto shrink-0 grid-cols-2 gap-2 min-[768px]:gap-3">
           <ExportButton label={isExportingImages ? '正在打包…' : '导出图包'} disabled={!exportsEnabled || !outputMatchesCurrentPages || sheetsLoading || isExportingImages} onClick={() => void downloadZip()} tip={exportsEnabled ? '将每张打印纸的正面和背面导出为高清 PNG 图片，并自动打包下载。适合逐张导入打印软件或保存备份。' : '页数还不符合骑马钉要求，补齐后才能导出。'} />
-          <ExportButton label="下载PDF" disabled={!exportsEnabled || !outputMatchesCurrentPages} onClick={() => void downloadPdf()} primary tip={exportsEnabled ? '下载已经按骑马钉页序排好的双面打印 PDF。请保持实际尺寸打印，并根据打印预览确认双面翻转方向。' : '页数还不符合骑马钉要求，补齐后才能下载。'} />
+          <ExportButton label={isSavingPdf ? '正在打开…' : '下载PDF'} disabled={!exportsEnabled || !outputMatchesCurrentPages || isSavingPdf} onClick={() => void downloadPdf()} primary tip={exportsEnabled ? '下载已经按骑马钉页序排好的双面打印 PDF。请保持实际尺寸打印，并根据打印预览确认双面翻转方向。' : '页数还不符合骑马钉要求，补齐后才能下载。'} />
         </div>
       </div>
     </div>
   );
 
   const downloadPdf = async () => {
-    if (!imposedPdfBlob || !exportsEnabled) return;
-    await saveBlobWithPicker(imposedPdfBlob, `打印稿_${targetDims.width}x${targetDims.height}mm_${file.name}`, [{ description: 'PDF 文件', accept: { 'application/pdf': ['.pdf'] } }]);
+    if (!imposedPdfBlob || !exportsEnabled || isSavingPdf) return;
+    setIsSavingPdf(true);
+    setPdfSaveMessage(null);
+    try {
+      const name = `打印稿_${targetDims.width}x${targetDims.height}mm_${file.name}`;
+      if (isMobileSaveBrowser()) {
+        const result = await savePdfOnMobile(imposedPdfBlob, name, openPdfOnlyRef.current);
+        if (result === 'opened') setPdfSaveMessage('PDF 已打开，请使用浏览器的分享或下载功能保存。');
+      } else {
+        await saveBlobWithPicker(imposedPdfBlob, name, [{ description: 'PDF 文件', accept: { 'application/pdf': ['.pdf'] } }]);
+      }
+    } catch (reason) {
+      console.error('PDF 保存失败', reason);
+      if (isMobileSaveBrowser()) {
+        openPdfOnlyRef.current = true;
+        setPdfSaveMessage('系统分享暂时不可用，请再次点击“下载PDF”，打开文件后使用浏览器保存。');
+      } else setPdfSaveMessage('保存失败，请检查保存位置的权限后重试。');
+    } finally { setIsSavingPdf(false); }
   };
 
   const downloadZip = async () => {
@@ -253,6 +272,7 @@ export const ImpositionEngine: React.FC<ImpositionEngineProps> = ({ file, target
     <section className="relative min-w-0 overflow-visible rounded-[20px] border border-white/85 bg-[#fdfbf8] px-3.5 py-5 shadow-[0_18px_40px_rgba(33,32,15,0.20)] min-[768px]:rounded-[28px] min-[768px]:px-6 min-[768px]:py-6 min-[1367px]:rounded-[32px] min-[1367px]:px-[34px] min-[1367px]:py-8">
       {exportControls(false)}
       {controlsMount ? createPortal(exportControls(true), controlsMount) : null}
+      {pdfSaveMessage && <p role="status" className="mb-4 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm leading-6 text-ink-secondary">{pdfSaveMessage}</p>}
       <div className="flex flex-col items-stretch gap-4 min-[768px]:flex-row min-[768px]:flex-wrap min-[768px]:items-center min-[768px]:justify-between min-[768px]:gap-5">
         <div><h2 className="font-heading text-[25px] leading-[38px] text-[#0f1729]">打印预览</h2><p className="mt-[5px] text-sm leading-[21px] text-ink-secondary">已按骑马钉装订方式自动排好页面，可在下方检查成册效果和打印顺序。</p></div>
         <div className="inline-flex w-full max-w-full shrink-0 rounded-full bg-surface-muted p-1 min-[1024px]:w-max">
